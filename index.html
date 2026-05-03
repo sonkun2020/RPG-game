@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>自分は勇者 - FINAL</title>
+<title>自分は勇者 - STABLE</title>
 
 <style>
 body{
@@ -12,18 +12,14 @@ color:#eee;
 font-family:sans-serif;
 text-align:center;
 overflow:hidden;
-transition:1.5s;
 }
 
-#title{
-margin-top:120px;
-}
+#title{margin-top:120px;}
 
 canvas{
 background:#111;
 border-radius:10px;
 margin-top:10px;
-transition:0.3s;
 }
 
 .panel{
@@ -31,8 +27,8 @@ width:340px;
 margin:10px auto;
 padding:10px;
 background:rgba(255,255,255,0.05);
-border:1px solid rgba(255,255,255,0.1);
 border-radius:12px;
+border:1px solid rgba(255,255,255,0.1);
 }
 
 #log{
@@ -54,28 +50,17 @@ border-radius:8px;
 cursor:pointer;
 }
 
-.fade{
-animation:fadeIn 1.5s ease;
-}
-
-@keyframes fadeIn{
-from{opacity:0;}
-to{opacity:1;}
-}
 </style>
 </head>
 
 <body>
 
-<!-- ================= TITLE ================= -->
-<div id="title" class="fade">
+<div id="title">
 <h1>自分は勇者</h1>
-<p>──あなたは本当に勇者ですか？</p>
 <button onclick="start()">START</button>
 </div>
 
-<!-- ================= GAME ================= -->
-<div id="game" style="display:none;" class="fade">
+<div id="game" style="display:none;">
 
 <div class="panel">
 <canvas id="map" width="320" height="320"></canvas>
@@ -99,25 +84,19 @@ to{opacity:1;}
 <script>
 
 // ======================
-// 基本状態
+// 状態管理（重要）
 // ======================
 
-let ctx;
-let x=160,y=160;
-let map="village";
-let phase="INTRO";
-let lock=false;
+let gameState = "MAP"; // MAP / BATTLE / CUT / END
 
-let player={hp:100,atk:10};
-let enemy=null;
+let player = {hp:100, atk:10};
+let enemy = null;
 
-let talk=0;
-let defend=false;
+let talkCount = 0;
+let defend = false;
 
-let flags={
-A:false,
-boss:false
-};
+// 魔王専用フラグ
+let bossFlag = false;
 
 // ======================
 // 開始
@@ -126,10 +105,8 @@ boss:false
 function start(){
 document.getElementById("title").style.display="none";
 document.getElementById("game").style.display="block";
-
-ctx=document.getElementById("map").getContext("2d");
-
-intro();
+log("目が覚めた");
+draw();
 }
 
 // ======================
@@ -143,104 +120,61 @@ l.scrollTop=l.scrollHeight;
 }
 
 // ======================
-// 初期演出
-// ======================
-
-function intro(){
-lock=true;
-fadeDark();
-
-setTimeout(()=>{
-log("……目が覚めた");
-log("誰かの声がする");
-lock=false;
-phase="MAP";
-draw();
-},1200);
-}
-
-// ======================
-// 移動
+// マップ
 // ======================
 
 document.addEventListener("keydown",(e)=>{
-if(phase!=="MAP" || lock) return;
-
-if(e.key==="ArrowUp") y-=6;
-if(e.key==="ArrowDown") y+=6;
-if(e.key==="ArrowLeft") x-=6;
-if(e.key==="ArrowRight") x+=6;
+if(gameState!=="MAP") return;
 
 draw();
-checkEvents();
+
+if(Math.random()<0.04){
+spawnEnemy();
+}
 });
 
 // ======================
-// 描画
+// 敵生成（完全分離）
 // ======================
 
-function draw(){
-ctx.clearRect(0,0,320,320);
-ctx.fillStyle="#222";
-ctx.fillRect(0,0,320,320);
+function spawnEnemy(){
 
-ctx.fillStyle="white";
-ctx.fillRect(x,y,10,10);
+let r=Math.random();
 
-document.getElementById("status").innerText =
-"HP:"+player.hp;
+if(r<0.6){
+enemy = createEnemy("mob");
+}
+else if(r<0.85){
+enemy = createEnemy("A");
+}
+else{
+enemy = createEnemy("boss");
+bossFlag = true;
+}
+
+gameState="BATTLE";
+
+log(enemy.name+"出現");
 }
 
 // ======================
-// イベント
+// 敵生成関数
 // ======================
 
-function checkEvents(){
-
-// 幹部A
-if(!flags.A && Math.random()<0.02){
-flags.A=true;
-battle("A");
-}
-
-// 魔王
-if(!flags.boss && Math.random()<0.01){
-flags.boss=true;
-battle("boss");
-}
-
-if(Math.random()<0.04){
-battle("mob");
-}
-}
-
-// ======================
-// 戦闘
-// ======================
-
-function battle(type){
-
-phase="BATTLE";
-lock=true;
+function createEnemy(type){
 
 if(type==="mob"){
-enemy={name:"魔物",hp:30,atk:6};
-log("魔物出現");
-lock=false;
+return {type:"mob",name:"魔物",hp:30,atk:6};
 }
 
 if(type==="A"){
-enemy={name:"フラッシュ・アース",hp:60,atk:8};
-log("フラッシュ・アース『……お前はまだ気づいていない』");
-lock=false;
+return {type:"A",name:"フラッシュ・アース",hp:60,atk:8};
 }
 
 if(type==="boss"){
-enemy={name:"魔王",hp:150,atk:15};
-fadeDark();
-log("魔王『来たか』");
-lock=false;
+return {type:"boss",name:"魔王",hp:150,atk:15};
 }
+
 }
 
 // ======================
@@ -249,53 +183,63 @@ lock=false;
 
 function act(type){
 
-if(lock||phase!=="BATTLE") return;
+if(gameState!=="BATTLE") return;
 
+// 攻撃
 if(type==="attack"){
 let d=player.atk+rand(-2,2);
 enemy.hp-=d;
 log("攻撃 "+d);
 }
 
+// 防御
 if(type==="defend"){
 defend=true;
 log("防御");
 }
 
+// 話す（魔王だけ意味あり）
 if(type==="talk"){
-talk++;
 
-if(enemy.name==="魔王"){
-if(talk>=4){
-endingTrue();
+if(enemy.type!=="boss") return;
+
+talkCount++;
+
+log("……");
+
+if(talkCount>=4){
+ending("true");
 return;
 }
-log(["……","まだだ","その目",""][talk-1]);
-}
 }
 
+// アイテム
 if(type==="item"){
-endingAbandon();
+ending("abandon");
 return;
 }
 
 enemyTurn();
 
 if(enemy.hp<=0){
-next();
+resolveBattle();
 }
+
 }
 
 // ======================
-// 敵
+// 敵ターン
 // ======================
 
 function enemyTurn(){
+
 let d=enemy.atk;
+
 if(defend) d=Math.floor(d/2);
 defend=false;
 
 player.hp-=d;
+
 log(enemy.name+"攻撃 "+d);
 
 if(player.hp<=0){
@@ -304,133 +248,67 @@ location.reload();
 }
 
 // ======================
-// 次へ
+// 戦闘終了（完全分離）
 // ======================
 
-function next(){
+function resolveBattle(){
 
-if(enemy.name==="魔物"){
-phase="MAP";
-lock=false;
+if(enemy.type==="mob"){
+gameState="MAP";
+log("撃破");
 return;
 }
 
-if(enemy.name==="フラッシュ・アース"){
-phase="MAP";
-lock=false;
+if(enemy.type==="A"){
+gameState="MAP";
+log("違和感が残る……");
 return;
 }
 
-if(enemy.name==="魔王"){
-endingHero();
+if(enemy.type==="boss"){
+ending("hero");
 }
+
 }
 
 // ======================
-// ED統一システム
+// ED管理（安全構造）
 // ======================
 
-function showED(title,lines,final=false){
+function ending(type){
 
-lock=true;
-document.body.style.filter="brightness(0.2)";
-
-setTimeout(()=>{
+gameState="END";
 
 document.body.innerHTML="";
-document.body.style.background="black";
 
-let div=document.createElement("div");
-div.style.color="white";
-div.style.marginTop="140px";
-div.style.textAlign="center";
-
-document.body.appendChild(div);
-
-div.innerHTML=`<h2>${title}</h2><div id="ed"></div>`;
-
-let box=document.getElementById("ed");
-
-let i=0;
-let id=setInterval(()=>{
-
-if(i<lines.length){
-box.innerHTML+=lines[i]+"<br>";
-i++;
-}else{
-clearInterval(id);
-if(final) setTimeout(trueFinalScene,2000);
+if(type==="hero"){
+document.body.innerHTML="<h2>勇者エンド</h2><p>魔王は倒された</p>";
 }
 
-},60);
-
-},1000);
+if(type==="abandon"){
+document.body.innerHTML="<h2>放棄エンド</h2><p>あなたは選ばなかった</p>";
 }
 
-// ======================
-// ED
-// ======================
-
-function endingHero(){
-showED("勇者エンド",[
-"魔王は倒された。",
-"世界は救われた。"
-]);
-}
-
-function endingAbandon(){
-showED("放棄エンド",[
-"あなたは剣を捨てた。",
-"世界は続く。"
-]);
-}
-
-function endingTrue(){
-showED("真エンド",[
-"……やっと気づいたか。",
-"あなたは勇者ではない。",
-"シンヤ・ラース"
-],true);
-}
-
-// ======================
-// 真ラスト
-// ======================
-
-function trueFinalScene(){
-
-document.body.innerHTML="";
-document.body.style.background="black";
-
-setTimeout(()=>{
-
+if(type==="true"){
 document.body.innerHTML=`
-<div style="color:white;text-align:center;margin-top:150px;">
-<p>……まだ終わっていない</p>
-<h2>シンヤ・ラース</h2>
-<p style="opacity:0.5;">これは記録だ</p>
-</div>
+<h2>真エンド</h2>
+<p>あなたはシンヤ・ラースだった</p>
 `;
+}
 
-setTimeout(()=>{
-document.body.style.opacity="0";
-},5000);
-
-},1000);
 }
 
 // ======================
-// utils
+// util
 // ======================
 
 function rand(a,b){
 return Math.floor(Math.random()*(b-a+1))+a;
 }
 
-function fadeDark(){
-document.body.style.transition="1.5s";
-document.body.style.filter="brightness(0.4)";
-setTimeout(()=>document.body.style.filter="brightness(1)",1200);
+function draw(){
+document.getElementById("status").innerText=
+"HP:"+player.hp;
 }
 
 </script>
