@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>自分は勇者 - 完全版</title>
+
+<style>
+body{
+margin:0;
+background:#050505;
+color:#eee;
+font-family:sans-serif;
+text-align:center;
+overflow:hidden;
+transition:1.5s;
+}
+
+#title{
+margin-top:120px;
+}
+
+canvas{
+background:#111;
+border-radius:10px;
+margin-top:10px;
+transition:0.3s;
+}
+
+.panel{
+width:340px;
+margin:10px auto;
+padding:10px;
+background:rgba(255,255,255,0.05);
+border:1px solid rgba(255,255,255,0.1);
+border-radius:12px;
+}
+
+#log{
+height:150px;
+overflow:auto;
+text-align:left;
+font-size:13px;
+line-height:1.4;
+white-space:pre-line;
+}
+
+button{
+margin:3px;
+padding:8px 12px;
+background:#111;
+color:#fff;
+border:1px solid #444;
+border-radius:8px;
+cursor:pointer;
+transition:0.2s;
+}
+
+button:hover{
+background:#222;
+transform:translateY(-1px);
+}
+
+.fade{
+animation:fadeIn 1.5s ease;
+}
+
+@keyframes fadeIn{
+from{opacity:0;}
+to{opacity:1;}
+}
+
+</style>
+</head>
+
+<body>
+
+<div id="title" class="fade">
+<h1>自分は勇者</h1>
+<p>──あなたは本当に勇者ですか？</p>
+<button onclick="start()">START</button>
+</div>
+
+<div id="game" style="display:none;" class="fade">
+
+<div class="panel">
+<canvas id="map" width="320" height="320"></canvas>
+</div>
+
+<div class="panel" id="status"></div>
+
+<div class="panel">
+<div id="log"></div>
+</div>
+
+<div class="panel">
+<button onclick="act('attack')">攻撃</button>
+<button onclick="act('defend')">防御</button>
+<button onclick="act('talk')">話す</button>
+<button onclick="act('item')">アイテム</button>
+</div>
+
+</div>
+
+<script>
+
+// ======================
+// 基本
+// ======================
+
+let ctx;
+let x=160,y=160;
+let map="village";
+let phase="MAP";
+let lock=false;
+
+let player={hp:100,atk:10};
+let enemy;
+
+let talk=0;
+let defend=false;
+
+// ======================
+// 開始
+// ======================
+
+function start(){
+document.getElementById("title").style.display="none";
+document.getElementById("game").style.display="block";
+
+ctx=document.getElementById("map").getContext("2d");
+
+log("目が覚めた");
+draw();
+}
+
+// ======================
+// ログ
+// ======================
+
+function log(t){
+let l=document.getElementById("log");
+l.innerText+=t+"\n";
+l.scrollTop=l.scrollHeight;
+}
+
+// ======================
+// マップ
+// ======================
+
+document.addEventListener("keydown",(e)=>{
+if(phase!=="MAP" || lock) return;
+
+if(e.key==="ArrowUp") y-=6;
+if(e.key==="ArrowDown") y+=6;
+if(e.key==="ArrowLeft") x-=6;
+if(e.key==="ArrowRight") x+=6;
+
+draw();
+encounter();
+});
+
+// ======================
+// 描画
+// ======================
+
+function draw(){
+ctx.clearRect(0,0,320,320);
+
+ctx.fillStyle="#222";
+ctx.fillRect(0,0,320,320);
+
+ctx.fillStyle="white";
+ctx.fillRect(x,y,10,10);
+
+document.getElementById("status").innerText =
+"HP:"+player.hp;
+}
+
+// ======================
+// エンカウント
+// ======================
+
+function encounter(){
+if(Math.random()<0.04){
+battle();
+}
+}
+
+// ======================
+// 戦闘
+// ======================
+
+function battle(){
+phase="BATTLE";
+
+enemy={
+name:"魔物",
+hp:40,
+atk:6
+};
+
+log("魔物が現れた");
+}
+
+// ======================
+// 行動
+// ======================
+
+function act(type){
+
+if(lock||phase!=="BATTLE") return;
+
+if(type==="attack"){
+let d=player.atk+rand(-2,2);
+enemy.hp-=d;
+log("攻撃 "+d);
+}
+
+if(type==="defend"){
+defend=true;
+log("防御");
+}
+
+if(type==="talk"){
+talk++;
+
+if(talk>=4){
+endingTrue();
+return;
+}
+
+log("……");
+}
+
+if(type==="item"){
+endingAbandon();
+return;
+}
+
+enemyTurn();
+
+if(enemy.hp<=0){
+endingHero();
+}
+}
+
+// ======================
+// 敵
+// ======================
+
+function enemyTurn(){
+let d=enemy.atk;
+if(defend) d=Math.floor(d/2);
+player.hp-=d;
+defend=false;
+
+log("敵攻撃 "+d);
+
+if(player.hp<=0){
+location.reload();
+}
+}
+
+// ======================
+// ランダム
+// ======================
+
+function rand(a,b){
+return Math.floor(Math.random()*(b-a+1))+a;
+}
+
+// ======================
+// エンディング（映画演出統一）
+// ======================
+
+function showED(title,lines,final=false){
+
+lock=true;
+document.body.style.filter="brightness(0.2)";
+
+setTimeout(()=>{
+
+document.body.innerHTML="";
+
+let div=document.createElement("div");
+div.style.color="white";
+div.style.marginTop="120px";
+div.style.textAlign="center";
+div.style.fontSize="18px";
+
+document.body.appendChild(div);
+
+div.innerHTML=`<h2>${title}</h2><div id="ed"></div>`;
+
+let box=document.getElementById("ed");
+
+let i=0;
+let id=setInterval(()=>{
+
+if(i<lines.length){
+box.innerHTML+=lines[i]+"<br>";
+i++;
+}else{
+clearInterval(id);
+
+if(final){
+setTimeout(trueFinalScene,2000);
+}
+}
+
+},60);
+
+},1000);
+}
+
+// ======================
+// ED
+// ======================
+
+function endingHero(){
+showED("勇者エンド",[
+"魔王は倒された。",
+"世界は救われた。"
+]);
+}
+
+function endingAbandon(){
+showED("放棄エンド",[
+"あなたは剣を捨てた。",
+"世界は静かに続く。"
+]);
+}
+
+function endingTrue(){
+showED("真エンド",[
+"……やっと気づいたか。",
+"あなたは勇者ではない。",
+"シンヤ・ラース。"
+],true);
+}
+
+// ======================
+// 真ラスト（完全操作不能）
+// ======================
+
+function trueFinalScene(){
+
+document.body.innerHTML="";
+document.body.style.background="black";
+
+setTimeout(()=>{
+
+document.body.innerHTML=`
+<div style="color:white;text-align:center;margin-top:150px;">
+<p>……まだ終わっていない</p>
+<h2>シンヤ・ラース</h2>
+<p style="opacity:0.5;">これは記録だ</p>
+</div>
+`;
+
+setTimeout(()=>{
+document.body.style.opacity="0";
+},5000);
+
+},1000);
+}
+
+</script>
+
+</body>
+</html>
